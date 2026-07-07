@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#0D1B2A"/>
+<title>北辰 — 統合ダッシュボード</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<link rel="icon" href="icon-192.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ── tokens ───────────────────────────────────────────────
+   北辰 — 静かな観測所。
+   地 #0D1B2A / 面 #152337 / 罫 #253A52 / 文字 #E9EEF5
+   方位青 #6FA8DC（リンク・フォーカス・北辰の印のみ）
+   差し色は 6px の点と状態表示に限定して使う：
+   CAIRN緑 #3DBA7A / IELTS琥珀 #F0A50D / 警 #E06555        */
+:root{
+  --bg:#0D1B2A; --surface:#152337; --card:#1C2E42; --well:#0F1D2E;
+  --text:#E9EEF5; --muted:#8BA4BE; --faint:#5F7891; --line:#253A52;
+  --accent:#6FA8DC;
+  --ok:#3DBA7A; --warn:#F0A50D; --danger:#E06555;
+  --sans:"Inter","Noto Sans JP",-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:15px;font-weight:400;line-height:1.7;min-height:100vh;}
+a{color:inherit;text-decoration:none;}
+button{font-family:var(--sans);cursor:pointer;}
+strong,b,h1,h2{font-weight:500;}
+.num{font-variant-numeric:tabular-nums;letter-spacing:.01em;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
+
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 72px;}
+
+/* ── 頭部 ── */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:calc(30px + env(safe-area-inset-top)) 0 24px;}
+.mast{display:flex;align-items:center;gap:14px;}
+.mark{flex-shrink:0;display:block;}
+h1{font-size:17px;font-weight:500;letter-spacing:.12em;line-height:1.3;}
+.head-date{font-size:12px;color:var(--muted);letter-spacing:.04em;}
+.account{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--faint);}
+.account button{background:none;border:1px solid var(--line);color:var(--muted);
+  border-radius:8px;padding:6px 13px;font-size:11.5px;transition:border-color .15s;}
+.account button:hover{border-color:var(--muted);}
+
+/* ── 区画 ── */
+.sect{margin-top:44px;}
+.sect-label{display:flex;align-items:baseline;justify-content:space-between;
+  font-size:11px;letter-spacing:.16em;color:var(--muted);margin-bottom:10px;}
+.sect-label small{font-size:11px;letter-spacing:.06em;color:var(--faint);}
+
+/* ── 今日：横断リスト ── */
+.orders{list-style:none;border-top:1px solid var(--line);}
+.order{display:flex;gap:13px;padding:14px 2px;border-bottom:1px solid var(--line);align-items:baseline;}
+.order .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;transform:translateY(-2px);
+  background:var(--dm,var(--faint));}
+.order.done .dot{background:transparent;border:1.5px solid var(--dm,var(--faint));width:7px;height:7px;}
+.order .tx{flex:1;font-size:14px;}
+.order.done .tx{color:var(--faint);}
+.order .dom{font-size:11px;letter-spacing:.1em;color:var(--faint);flex-shrink:0;}
+.orders-empty{padding:20px 2px;color:var(--faint);font-size:13.5px;line-height:1.8;
+  border-bottom:1px solid var(--line);list-style:none;}
+/* 逃避シグナル発火時のみ挿入される静かな一行 */
+.escape-line{display:flex;gap:13px;padding:13px 2px 0;align-items:baseline;
+  color:var(--warn);font-size:13px;}
+.escape-line .dot{width:6px;height:6px;border-radius:50%;background:var(--warn);flex-shrink:0;transform:translateY(-2px);}
+
+/* ── 観測：アプリカード ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:20px 18px 18px;display:block;position:relative;transition:border-color .15s,transform .15s;}
+a.card:hover{border-color:var(--muted);transform:translateY(-1px);}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px;}
+.card-name{display:flex;align-items:baseline;gap:9px;font-size:13px;font-weight:500;letter-spacing:.08em;}
+.card-name .dot{width:6px;height:6px;border-radius:50%;background:var(--dm,var(--faint));flex-shrink:0;transform:translateY(-1px);}
+.card-name .sub{font-size:11px;font-weight:400;color:var(--faint);letter-spacing:.05em;}
+.card-sync{font-size:10.5px;color:var(--faint);letter-spacing:.03em;white-space:nowrap;}
+.card-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;
+  border-top:1px solid var(--line);font-size:13px;align-items:baseline;}
+.card-row .k{color:var(--faint);font-size:12px;flex-shrink:0;}
+.card-row .v{text-align:right;line-height:1.55;}
+.stat{font-size:12px;letter-spacing:.04em;}
+.card-empty{color:var(--faint);font-size:12.5px;padding:12px 0 4px;line-height:1.8;}
+.card .go{position:absolute;right:16px;bottom:13px;font-size:11px;color:var(--faint);transition:color .15s;}
+a.card:hover .go{color:var(--muted);}
+/* CBT：準備中の空カード */
+.card.ghost{background:transparent;border-style:dashed;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;min-height:150px;gap:8px;}
+.card.ghost .card-name{justify-content:center;color:var(--muted);}
+.card.ghost .hint{color:var(--faint);font-size:11.5px;line-height:1.8;max-width:26em;opacity:.85;}
+
+/* ── 逃避シグナル ── */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 18px;}
+.esc-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:14px;align-items:end;}
+.field label{display:block;font-size:11.5px;color:var(--faint);margin-bottom:7px;letter-spacing:.04em;line-height:1.5;}
+.field input{width:100%;background:var(--well);border:1px solid var(--line);border-radius:9px;
+  color:var(--text);font-family:var(--sans);font-variant-numeric:tabular-nums;
+  font-size:16px;padding:11px 12px;text-align:center;-webkit-appearance:none;transition:border-color .15s;}
+.field input:focus{border-color:var(--accent);outline:none;}
+.field input::placeholder{color:var(--faint);}
+.esc-save{background:transparent;border:1px solid var(--line);color:var(--text);
+  border-radius:9px;padding:12px 22px;font-size:13.5px;height:46px;transition:border-color .15s,color .15s;}
+.esc-save:hover{border-color:var(--muted);}
+.esc-save.ok{border-color:var(--ok);color:var(--ok);}
+.esc-hint{font-size:11.5px;color:var(--faint);margin-top:12px;line-height:1.8;}
+.esc-alert{margin-top:16px;padding:13px 15px;border:1px solid rgba(240,165,13,.4);border-radius:9px;
+  color:var(--warn);font-size:13px;line-height:1.7;background:rgba(240,165,13,.05);}
+/* 履歴 */
+.hist{margin-top:22px;}
+.hist-row{display:grid;grid-template-columns:5.2em 1fr 8.5em 1.4em;gap:12px;align-items:center;
+  padding:8px 0;border-top:1px solid var(--line);font-size:12px;}
+.hist-row .d{color:var(--muted);font-variant-numeric:tabular-nums;}
+.hist-bars{display:flex;flex-direction:column;gap:3px;}
+.hist-bar{height:4px;border-radius:2px;background:var(--well);position:relative;overflow:hidden;}
+.hist-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;}
+.hist-row .nums{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--muted);text-align:right;white-space:nowrap;}
+.hist-row .signal{color:var(--warn);text-align:center;font-size:9px;}
+.hist-more{margin-top:14px;background:none;border:none;color:var(--accent);font-size:12.5px;padding:0;}
+.hist-legend{display:flex;gap:18px;font-size:11px;color:var(--faint);margin-top:14px;flex-wrap:wrap;}
+.hist-legend span::before{content:"";display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;transform:translateY(-2px);}
+.hist-legend .lp::before{background:var(--ok);}
+.hist-legend .le::before{background:var(--danger);}
+.hist-legend .ls::before{content:none;}
+
+footer{margin-top:52px;font-size:11px;color:var(--faint);line-height:1.9;
+  border-top:1px solid var(--line);padding-top:18px;}
+
+/* ── 認証／状態画面 ── */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.gate-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:32px 28px;}
+.gate-head{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:26px;}
+.gate-head h1{letter-spacing:.18em;}
+.gate .field{margin-bottom:12px;}
+.gate .field input{text-align:left;font-size:15px;}
+.gate-btn{width:100%;border-radius:9px;padding:13px;font-size:14px;margin-bottom:10px;
+  border:1px solid var(--line);transition:border-color .15s;}
+.gate-btn.primary{background:var(--card);color:var(--text);border-color:var(--muted);}
+.gate-btn.primary:hover{border-color:var(--accent);}
+.gate-btn.ghost{background:none;color:var(--muted);}
+.gate-btn.ghost:hover{border-color:var(--muted);}
+.gate-links{display:flex;justify-content:space-between;margin-top:14px;}
+.gate-links button{background:none;border:none;font-size:12px;color:var(--accent);padding:0;}
+.gate-links button.mut{color:var(--faint);}
+.gate-msg{font-size:12.5px;margin-top:12px;line-height:1.6;min-height:1em;}
+.gate-msg.err{color:var(--danger);}
+.gate-msg.ok{color:var(--ok);}
+.gate ol{padding-left:20px;font-size:13px;display:flex;flex-direction:column;gap:9px;color:var(--muted);}
+.gate p{font-size:13.5px;color:var(--muted);margin-bottom:16px;line-height:1.8;}
+.loading-text{color:var(--faint);font-size:12px;letter-spacing:.2em;}
+.hidden{display:none!important;}
+
+@media (max-width:640px){
+  .wrap{padding:0 18px 64px;}
+  .sect{margin-top:38px;}
+  .esc-grid{grid-template-columns:1fr 1fr;}
+  .esc-save{grid-column:1/-1;}
+  .account .email{display:none;}
+  .hist-row{grid-template-columns:4.6em 1fr 7.5em 1.2em;gap:8px;}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="compass" viewBox="0 0 26 26">
+      <circle cx="13" cy="13" r="11.5" fill="none" stroke="#6FA8DC" stroke-width="1"/>
+      <path d="M13 5.5 L15 13 L13 20.5 L11 13 Z" fill="none" stroke="#E9EEF5" stroke-width="1" stroke-linejoin="round"/>
+      <circle cx="13" cy="13" r="1" fill="#6FA8DC"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="gate-loading" class="gate"><div class="loading-text">接続中…</div></div>
+
+<div id="gate-setup" class="gate hidden">
+  <div class="gate-card">
+    <div class="gate-head">
+      <svg class="mark" width="30" height="30" aria-hidden="true"><use href="#compass"/></svg>
+      <h1>北辰</h1>
+    </div>
+    <p>FIREBASE_CONFIG が未設定です。CAIRN／IELTSトラッカーと同じ値をこのファイルに貼り付けてください。</p>
+    <ol>
+      <li>index.html 内の FIREBASE_CONFIG に firebaseConfig を貼り付け</li>
+      <li>承認済みドメインに username.github.io が追加済みか確認</li>
+      <li>Firestoreルールは既存のもの（users/{uid} と hubSummary/{uid}）でそのまま動作</li>
+    </ol>
+  </div>
+</div>
+
+<div id="gate-auth" class="gate hidden">
+  <div class="gate-card">
+    <div class="gate-head">
+      <svg class="mark" width="30" height="30" aria-hidden="true"><use href="#compass"/></svg>
+      <h1>北辰</h1>
+    </div>
+    <div class="field"><label for="au-email">メールアドレス</label>
+      <input id="au-email" type="email" autocomplete="email"></div>
+    <div class="field"><label for="au-pw">パスワード（6文字以上）</label>
+      <input id="au-pw" type="password" autocomplete="current-password"></div>
+    <button id="au-submit" class="gate-btn primary">ログイン</button>
+    <button id="au-google" class="gate-btn ghost">Googleでログイン</button>
+    <div class="gate-links">
+      <button id="au-toggle">新規登録はこちら</button>
+      <button id="au-reset" class="mut">パスワード再設定</button>
+    </div>
+    <div id="au-msg" class="gate-msg"></div>
+  </div>
+</div>
+
+<div id="main" class="wrap hidden">
+  <header>
+    <div class="mast">
+      <svg class="mark" width="27" height="27" role="img" aria-label="北辰"><use href="#compass"/></svg>
+      <div>
+        <h1>北辰</h1>
+        <div class="head-date" id="head-date"></div>
+      </div>
+    </div>
+    <div class="account">
+      <span class="email" id="acc-email"></span>
+      <button id="acc-signout">ログアウト</button>
+    </div>
+  </header>
+
+  <section class="sect">
+    <div class="sect-label">今日<small id="today-label"></small></div>
+    <ul class="orders" id="orders"></ul>
+    <div id="escape-line-slot"></div>
+  </section>
+
+  <section class="sect">
+    <div class="sect-label">観測</div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="sect">
+    <div class="sect-label">逃避シグナル</div>
+    <div class="panel">
+      <div class="esc-grid">
+        <div class="field"><label for="esc-prod">生産的活動（時間） — 勉強＋トレーニング＋開発</label>
+          <input id="esc-prod" inputmode="decimal" placeholder="0.0"></div>
+        <div class="field"><label for="esc-esc">逃避（時間） — YouTube＋X（スクリーンタイム転記）</label>
+          <input id="esc-esc" inputmode="decimal" placeholder="0.0"></div>
+        <button id="esc-save" class="esc-save">記入する</button>
+      </div>
+      <div class="esc-hint" id="esc-hint"></div>
+      <div id="esc-alert-slot"></div>
+      <div class="hist" id="esc-hist"></div>
+    </div>
+  </section>
+
+  <footer>
+    各カードの内容は CAIRN / IELTSトラッカーが書き出す hubSummary をリアルタイム購読して表示しています。このページから各アプリのデータを変更することはありません（逃避シグナルの記録のみこのページが保持します）。
+  </footer>
+</div>
+
+<!--
+  Firebase設定：CAIRN / IELTSトラッカーと同一プロジェクト・同一configを使用。
+  Firestoreルールはセッション0で設定済みのもので追加変更不要
+  （逃避シグナルは users/{uid}/hub_daily/{date} に保存され、既存ルールの範囲内）。
+-->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+import {
+  initializeFirestore, getFirestore,
+  persistentLocalCache, persistentMultipleTabManager,
+  doc, collection, onSnapshot, setDoc, query, orderBy, limit
+} from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+// ▼▼▼ CAIRN / IELTSトラッカーと同じ firebaseConfig を貼り付け ▼▼▼
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCwhqkg--qtaZHtBaGHmDyr5mcQx8qdYa0",
+  authDomain: "ganbaru-8cb63.firebaseapp.com",
+  projectId: "ganbaru-8cb63",
+  storageBucket: "ganbaru-8cb63.firebasestorage.app",
+  messagingSenderId: "144623085489",
+  appId: "1:144623085489:web:1e9e72d170ba7487beff90",
+  measurementId: "G-36TNQVKHTE"
+};
+// ▲▲▲──────────────────────────────────────────────────▲▲▲
+
+// 各アプリへのリンク（GitHub Pagesのリポジトリ名に合わせて変更する）
+const APP_LINKS = { cairn: "./cairn/", ielts: "./ielts/", cbt: null };
+
+// 逃避シグナルの閾値
+const ESC_LIMIT_MIN  = 150; // 逃避 2.5時間超で発火
+const PROD_FLOOR_MIN = 120; // 生産的活動 2時間未満で発火
+
+// ── 状態 ─────────────────────────────────────────────
+let auth, db, uid = null;
+let hub = null;        // hubSummary/{uid} の内容
+let daily = [];        // hub_daily（日付降順）
+let unsubs = [];
+let histLimit = 14;
+
+const $ = id => document.getElementById(id);
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtH = min => (Math.round(min / 6) / 10) + "h";
+
+// ── 画面切り替え ──────────────────────────────────────
+function show(id) {
+  ["gate-loading", "gate-setup", "gate-auth", "main"].forEach(x =>
+    $(x).classList.toggle("hidden", x !== id));
+}
+
+// ── 認証 ─────────────────────────────────────────────
+function authErrMsg(ex) {
+  const c = (ex && ex.code) || "";
+  if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found"))
+    return "メールアドレスまたはパスワードが正しくありません。";
+  if (c.includes("email-already-in-use")) return "このメールアドレスは登録済みです。ログインしてください。";
+  if (c.includes("weak-password")) return "パスワードは6文字以上にしてください。";
+  if (c.includes("invalid-email")) return "メールアドレスの形式が正しくありません。";
+  if (c.includes("too-many-requests")) return "試行回数が多すぎます。しばらく待ってからお試しください。";
+  if (c.includes("popup") || c.includes("cancelled")) return "ポップアップを開けませんでした。メール/パスワードでお試しください。";
+  if (c.includes("network")) return "ネットワークエラー。接続を確認してください。";
+  return "エラー: " + ((ex && ex.message) || ex);
+}
+let authMode = "signin";
+function gateMsg(msg, ok) {
+  const el = $("au-msg");
+  el.textContent = msg || "";
+  el.className = "gate-msg" + (msg ? (ok ? " ok" : " err") : "");
+}
+function wireAuth() {
+  $("au-toggle").onclick = () => {
+    authMode = authMode === "signin" ? "signup" : "signin";
+    $("au-submit").textContent = authMode === "signin" ? "ログイン" : "アカウントを作成";
+    $("au-toggle").textContent = authMode === "signin" ? "新規登録はこちら" : "ログインはこちら";
+    gateMsg("");
+  };
+  $("au-submit").onclick = async () => {
+    const em = $("au-email").value.trim(), pw = $("au-pw").value;
+    if (!em || !pw) { gateMsg("メールアドレスとパスワードを入力してください。"); return; }
+    gateMsg(""); $("au-submit").disabled = true;
+    try {
+      if (authMode === "signin") await signInWithEmailAndPassword(auth, em, pw);
+      else await createUserWithEmailAndPassword(auth, em, pw);
+    } catch (ex) { gateMsg(authErrMsg(ex)); }
+    $("au-submit").disabled = false;
+  };
+  $("au-pw").addEventListener("keydown", ev => { if (ev.key === "Enter") $("au-submit").click(); });
+  $("au-google").onclick = async () => {
+    gateMsg("");
+    try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+    catch (ex) { gateMsg(authErrMsg(ex)); }
+  };
+  $("au-reset").onclick = async () => {
+    const em = $("au-email").value.trim();
+    if (!em) { gateMsg("再設定するメールアドレスを入力してください。"); return; }
+    try { await sendPasswordResetEmail(auth, em); gateMsg("パスワード再設定メールを送信しました。", true); }
+    catch (ex) { gateMsg(authErrMsg(ex)); }
+  };
+  $("acc-signout").onclick = () => signOut(auth);
+}
+
+// ── 購読 ─────────────────────────────────────────────
+function subscribe() {
+  unsubs.push(onSnapshot(doc(db, "hubSummary", uid),
+    snap => { hub = snap.exists() ? snap.data() : null; render(); },
+    err => console.warn("hubSummary購読:", err)));
+  unsubs.push(onSnapshot(
+    query(collection(db, "users", uid, "hub_daily"), orderBy("date", "desc"), limit(90)),
+    snap => { daily = snap.docs.map(d => d.data()); render(); },
+    err => console.warn("hub_daily購読:", err)));
+}
+function unsubscribeAll() { unsubs.forEach(u => u()); unsubs = []; }
+
+// ── 逃避シグナル判定 ──────────────────────────────────
+function escapeFired(rec) {
+  if (!rec) return false;
+  if (rec.escapeMin != null && rec.escapeMin > ESC_LIMIT_MIN) return true;
+  if (rec.productiveMin != null && rec.productiveMin < PROD_FLOOR_MIN) return true;
+  return false;
+}
+function escapeReason(rec) {
+  const parts = [];
+  if (rec.escapeMin != null && rec.escapeMin > ESC_LIMIT_MIN)
+    parts.push(`逃避 ${fmtH(rec.escapeMin)}（基準 2.5h）`);
+  if (rec.productiveMin != null && rec.productiveMin < PROD_FLOOR_MIN)
+    parts.push(`生産的活動 ${fmtH(rec.productiveMin)}（基準 2h以上）`);
+  return parts.join(" ／ ");
+}
+
+// ── 描画 ─────────────────────────────────────────────
+const WD = ["日", "月", "火", "水", "木", "金", "土"];
+function renderDate() {
+  const n = new Date();
+  $("head-date").textContent = `${n.getMonth() + 1}月${n.getDate()}日 ${WD[n.getDay()]}曜日`;
+  $("today-label").textContent = `${n.getFullYear()}.${String(n.getMonth() + 1).padStart(2, "0")}.${String(n.getDate()).padStart(2, "0")}`;
+}
+function agoText(iso) {
+  if (!iso) return "";
+  const t = typeof iso === "string" ? Date.parse(iso) : (iso.toDate ? iso.toDate().getTime() : null);
+  if (!t) return "";
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return "たった今";
+  if (m < 60) return `${m}分前`;
+  if (m < 60 * 36) return `${Math.round(m / 60)}時間前`;
+  return `${Math.round(m / 1440)}日前`;
+}
+// HRVの3段階評価（ベースライン比）
+function hrvLevel(h) {
+  if (!h || h.value == null) return null;
+  const d = h.deltaPct;
+  if (d == null) return { label: "平常", color: "var(--ok)" };
+  if (d <= -18) return { label: "要注意", color: "var(--danger)" };
+  if (d <= -8)  return { label: "やや低下", color: "var(--warn)" };
+  return { label: "平常", color: "var(--ok)" };
+}
+
+function render() {
+  renderDate();
+  renderOrders();
+  renderCards();
+  renderEscape();
+}
+
+// 今日：横断タスクリスト
+const DM_COLOR = { CAIRN: "var(--ok)", IELTS: "var(--warn)", "北辰": "var(--accent)" };
+function renderOrders() {
+  const items = [];
+  const c = hub && hub.cairn, i = hub && hub.ielts;
+  if (c && c.todayPlan) {
+    const done = c.todayPlan.status === "logged";
+    items.push({ done, dom: "CAIRN",
+      text: done ? `トレーニング記録済み — ${c.todayPlan.text}`
+                 : `トレーニングを記録する${c.todayPlan.text && c.todayPlan.text !== "未記録" ? `（${c.todayPlan.text.replace(/^未記録 — /, "")}）` : ""}` });
+  }
+  if (i && i.todayTask) {
+    const done = i.todayTask.status === "logged";
+    items.push({ done, dom: "IELTS", text: i.todayTask.text });
+  }
+  const t = daily.find(r => r.date === todayStr());
+  items.push(t
+    ? { done: true, dom: "北辰", text: `生産/逃避時間 記入済み — 生産 ${t.productiveMin != null ? fmtH(t.productiveMin) : "—"} / 逃避 ${t.escapeMin != null ? fmtH(t.escapeMin) : "—"}` }
+    : { done: false, dom: "北辰", text: "今日の生産的活動・逃避時間を記入する" });
+
+  $("orders").innerHTML = items.length
+    ? items.map(o => `<li class="order ${o.done ? "done" : "pend"}" style="--dm:${DM_COLOR[o.dom] || "var(--faint)"}">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="tx">${esc(o.text)}</span>
+        <span class="dom">${o.done ? "済 · " : ""}${o.dom}</span></li>`).join("")
+    : `<li class="orders-empty">まだ項目がありません。各アプリで記録を始めると、ここに今日やることが集まります。</li>`;
+
+  // 逃避シグナル発火時のみの静かな一行
+  const fired = t && escapeFired(t);
+  $("escape-line-slot").innerHTML = fired
+    ? `<div class="escape-line"><span class="dot" aria-hidden="true"></span><span>今日、理想から少し離れているかもしれない — ${esc(escapeReason(t))}</span></div>`
+    : "";
+}
+
+// 観測カード（データ駆動：将来CBTのrendererを足すだけで拡張できる）
+const DOMAINS = [
+  {
+    key: "cairn", name: "CAIRN", sub: "トレーニング", accent: "var(--ok)",
+    body(d) {
+      if (!d) return `<div class="card-empty">まだ要約がありません。CAIRNで記録すると表示されます。</div>`;
+      const lv = hrvLevel(d.latestHRV);
+      const w = d.weeklyLoad || {};
+      return `
+        <div class="card-row"><span class="k">今日の予定</span><span class="v">${esc((d.todayPlan && d.todayPlan.text) || "—")}</span></div>
+        <div class="card-row"><span class="k">直近HRV</span><span class="v">${
+          d.latestHRV ? `<span class="num">${d.latestHRV.value}ms</span>&nbsp;<span class="stat" style="color:${lv.color}">${lv.label}</span>` : "—"
+        }</span></div>
+        <div class="card-row"><span class="k">週間負荷</span><span class="v"><span class="num">${w.thisWeek != null ? w.thisWeek : "—"}</span>
+          ${w.acwr != null ? `&nbsp;<span class="num" style="color:var(--faint)">ACWR ${w.acwr}${w.status ? `・${esc(w.status)}` : ""}</span>` : ""}</span></div>`;
+    }
+  },
+  {
+    key: "ielts", name: "IELTS", sub: "英語学習", accent: "var(--warn)",
+    body(d) {
+      if (!d) return `<div class="card-empty">まだ要約がありません。IELTSトラッカーで記録すると表示されます。</div>`;
+      const p = d.progressPhase || {};
+      return `
+        <div class="card-row"><span class="k">今日のタスク</span><span class="v">${esc((d.todayTask && d.todayTask.text) || "—")}</span></div>
+        <div class="card-row"><span class="k">フェーズ</span><span class="v">${esc(p.label || "—")}</span></div>
+        <div class="card-row"><span class="k">本番まで</span><span class="v"><span class="num">${d.daysUntilExam != null ? `${d.daysUntilExam}日` : "—"}</span>
+          ${d.examDate ? `&nbsp;<span class="num" style="color:var(--faint)">${esc(d.examDate)}</span>` : ""}</span></div>`;
+    }
+  },
+  {
+    key: "cbt", name: "CBT", sub: "医学共用試験", accent: "var(--faint)", ghost: true,
+    body(d) {
+      if (!d) return "";
+      return `<div class="card-row"><span class="k">状況</span><span class="v">${esc(JSON.stringify(d))}</span></div>`;
+    }
+  },
+];
+function renderCards() {
+  $("cards").innerHTML = DOMAINS.map(dm => {
+    const d = hub && hub[dm.key];
+    const link = APP_LINKS[dm.key];
+    // 空のghostカードは「準備中」表示に
+    if (dm.ghost && !d) {
+      return `<div class="card ghost" style="--dm:${dm.accent}">
+        <span class="card-name"><span class="dot" aria-hidden="true"></span>${dm.name}
+          <span class="sub">${dm.sub}</span></span>
+        <span class="hint">準備中 — 対策ツールを追加したら、hubSummary の ${dm.key} フィールドに書き出すだけでここに表示されます。</span>
+      </div>`;
+    }
+    const inner = `
+      <div class="card-head">
+        <span class="card-name" style="--dm:${dm.accent}"><span class="dot" aria-hidden="true"></span>${dm.name}
+          <span class="sub">${dm.sub}</span></span>
+        <span class="card-sync">${d && d.updatedAt ? esc(agoText(d.updatedAt)) : ""}</span>
+      </div>
+      ${dm.body(d)}
+      ${link ? `<span class="go">開く ↗</span>` : ""}`;
+    return link
+      ? `<a class="card" href="${link}">${inner}</a>`
+      : `<div class="card">${inner}</div>`;
+  }).join("");
+}
+
+// 逃避シグナル：入力＋アラート＋履歴
+function renderEscape() {
+  const t = daily.find(r => r.date === todayStr());
+  // 入力欄は編集中に上書きしない（フォーカスが無いときだけプリフィル）
+  if (document.activeElement !== $("esc-prod") && document.activeElement !== $("esc-esc")) {
+    $("esc-prod").value = t && t.productiveMin != null ? String(Math.round(t.productiveMin / 6) / 10) : "";
+    $("esc-esc").value  = t && t.escapeMin != null ? String(Math.round(t.escapeMin / 6) / 10) : "";
+  }
+  const trained = hub && hub.cairn && hub.cairn.todayTrainedMin;
+  $("esc-hint").textContent =
+    (trained > 0 ? `参考: CAIRNに今日 ${fmtH(trained)} のトレーニング記録あり。` : "") +
+    `発火条件: 逃避 2.5h超 または 生産的活動 2h未満。満たさない日は何も表示されません。`;
+
+  const fired = t && escapeFired(t);
+  $("esc-alert-slot").innerHTML = fired
+    ? `<div class="esc-alert">今日、理想から少し離れているかもしれない。<br>${esc(escapeReason(t))}</div>`
+    : "";
+
+  // 履歴
+  const rows = daily.slice(0, histLimit);
+  const maxMin = Math.max(240, ...daily.slice(0, histLimit).flatMap(r => [r.productiveMin || 0, r.escapeMin || 0]));
+  $("esc-hist").innerHTML = rows.length ? `
+    ${rows.map(r => `
+      <div class="hist-row">
+        <span class="d">${r.date.slice(5).replace("-", "/")}</span>
+        <span class="hist-bars">
+          <span class="hist-bar"><i style="width:${Math.min(100, (r.productiveMin || 0) / maxMin * 100)}%;background:var(--ok)"></i></span>
+          <span class="hist-bar"><i style="width:${Math.min(100, (r.escapeMin || 0) / maxMin * 100)}%;background:var(--danger)"></i></span>
+        </span>
+        <span class="nums">${r.productiveMin != null ? fmtH(r.productiveMin) : "—"} / ${r.escapeMin != null ? fmtH(r.escapeMin) : "—"}</span>
+        <span class="signal">${escapeFired(r) ? "●" : ""}</span>
+      </div>`).join("")}
+    <div class="hist-legend"><span class="lp">生産的活動</span><span class="le">逃避</span><span class="ls">● = シグナル発火日</span></div>
+    ${daily.length > histLimit ? `<button class="hist-more" id="hist-more">さらに表示（全${daily.length}日）</button>` : ""}
+  ` : `<div style="color:var(--faint);font-size:12.5px;margin-top:16px">記録はまだありません。今日から始められます。</div>`;
+  const more = $("hist-more");
+  if (more) more.onclick = () => { histLimit = 90; render(); };
+}
+
+// 保存
+function wireEscapeInput() {
+  $("esc-save").onclick = async () => {
+    const pv = parseFloat($("esc-prod").value), ev = parseFloat($("esc-esc").value);
+    if (isNaN(pv) && isNaN(ev)) { alert("どちらかの時間を入力してください。"); return; }
+    const date = todayStr();
+    const cur = daily.find(r => r.date === date) || { date };
+    const rec = { ...cur, date, updatedAt: new Date().toISOString() };
+    if (!isNaN(pv)) rec.productiveMin = Math.max(0, Math.round(pv * 60));
+    if (!isNaN(ev)) rec.escapeMin = Math.max(0, Math.round(ev * 60));
+    const btn = $("esc-save");
+    try {
+      await setDoc(doc(db, "users", uid, "hub_daily", date), rec, { merge: true });
+      btn.textContent = "✓ 記入した"; btn.classList.add("ok");
+      setTimeout(() => { btn.textContent = "記入する"; btn.classList.remove("ok"); }, 1600);
+    } catch (err) { alert("保存に失敗しました: " + ((err && err.message) || err)); }
+  };
+}
+
+// ── 起動 ─────────────────────────────────────────────
+(function boot() {
+  if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) { show("gate-setup"); return; }
+  const app = initializeApp(FIREBASE_CONFIG);
+  auth = getAuth(app);
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    });
+  } catch (err) { console.warn("永続キャッシュ不可:", err); db = getFirestore(app); }
+  wireAuth();
+  wireEscapeInput();
+  onAuthStateChanged(auth, user => {
+    unsubscribeAll();
+    if (!user) { uid = null; hub = null; daily = []; show("gate-auth"); return; }
+    uid = user.uid;
+    $("acc-email").textContent = user.email || "";
+    show("main");
+    render();
+    subscribe();
+  });
+})();
+</script>
+</body>
+</html>
